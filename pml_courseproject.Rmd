@@ -1,0 +1,152 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "vsinouvassin"
+date: "Sunday, October 18, 2015"
+output: html_document
+---
+```{r setoptions,echo=FALSE}
+options(scipen = 4, digits = 3) #setting options for display of numbers
+```
+
+## Report
+Through the study of the data provided through the experiment called "Human Activity Recognition" done by Groupware@LES (see the following link for more information: http://groupware.les.inf.puc-rio.br/har), we will try to build an algorithm which can predict the activity done by the subject : sitting-down, standing-up, standing, walking, and sitting.
+They have obtained an accuracy rate of 99,41% and a Root Mean Squared error of 0.0463. We will try in the following project try to replicate the good results they have achieved.
+
+## Getting and cleaning the data
+```{r libraries,echo=TRUE, message=FALSE, warning=FALSE}
+## Loading the libraries if needed
+require(caret)
+require(randomForest)
+require(MASS)
+require(rpart)
+require(stats)
+```
+
+```{r data, echo=TRUE}
+# The working directory has to be set to the directory where the data files have been downloaded.
+# Training data download
+init_data <- read.csv("pml-training.csv", na.strings=c("", "NA"))
+# Testing data download
+init_test <- read.csv("pml-testing.csv", na.strings=c("", "NA"))
+```
+
+We first do a brief exploratory data analysis through the summary function in r  (see Fig. 1 in Annexe).
+```{r summary, echo=TRUE, results='hide'}
+summ <- summary(init_data)
+```
+We observe that for many variables, 19216 "NA" values are present out of 19622 values, so 97.9% of the data.
+Furthermore, the 7 first columns contain only timestamps or information relative to the users.
+All these variables are not relevant in training the prediction algorithm.
+
+So we are going to exclude all these non-relevant variables.
+```{r filtering, echo=TRUE, results='hide'}
+colNA <- sapply(init_data, function(y) sum(length(which(is.na(y))))) #getting the number of NA per column
+cleanData <- init_data[,colNA==0] #filtering only columns where there is no NA
+cleanData <- cleanData[,-c(1,2,3,4,5,6,7)] #filtering out the first 7 columns
+
+# I use the same filtering for the testing data
+testing <- init_test[,colNA==0] #filtering only columns where there is no NA
+testing <- testing[,-c(1,2,3,4,5,6,7)] #filtering out the first 7 columns
+```
+
+We will now set seed for reproducibility and divide the cleaned data between a training and a validation dataset.
+```{r divide, echo=TRUE, results='hide'}
+set.seed(357) #setting seed
+inTrain <- createDataPartition(y=cleanData$classe, p=0.7, list=FALSE)
+training <- cleanData[inTrain,]
+validation <- cleanData[-inTrain,]
+```
+
+## Training the models
+
+The problem consists in predicting multiple classes (5 classes) from a labeled data : this is a classical supervised multiclass classification problem.
+The usual algorithms for this type of problem are : Linear discriminant analysis, Decision trees, Random Forests, Nearest neighbours, etc.
+For this project, I'll try to use : 
+We will try to fit different models with the training data and then we are going to compare them on the testing data.
+
+A. First Model : Linear Discriminant Analysis
+
+First, I fit a Linear Discriminant Analysis model to the training data and make a prediction on the testing data. Then I calculate the accuracy through confusion Matrix.
+```{r lda, echo=TRUE, results='hide'}
+fit_lda <- lda(classe ~ ., data=training)
+pred_lda <- predict(fit_lda,newdata=validation)
+cf_lda <- confusionMatrix(pred_lda$class,validation$classe)
+```
+I get an accuracy of 0.706 and a Kappa of 0.6277 (see Fig. 2 in Annexe).
+
+B. Second Model : Random Forest
+
+Second, I use the same method as above but with a Random Forest model this time.
+```{r rf, echo=TRUE, results='hide'}
+fit_rf <- randomForest(classe ~ ., data=training)
+pred_rf <- predict(fit_rf,newdata=validation)
+cf_rf <- confusionMatrix(pred_rf,validation$classe)
+```
+For Random Forest, I get an accuracy of 0.9963 and a Kappa of 0.9953  (see Fig. 3 in Annexe).
+
+C. Third Model : Recursive Partitioning and Regression Trees
+
+Third, I try this time a Recursive Partitioning model.
+```{r rpart, echo=TRUE, results='hide'}
+fit_rp <- rpart(classe ~ ., data=training)
+pred_rp <- predict(fit_rp,newdata=validation, type="class")
+cf_rp <- confusionMatrix(pred_rp,validation$classe)
+```
+For Recursive Partitioning, I get an Accuracy of 0.7188 and a Kappa of 0.6423  (see Fig. 4 in Annexe).
+
+## Cross-validation and out of sample error rates
+
+The cross-validation has to be on a different dataset than the training set, which is the case of the validation dataset where we've calculated the predictions for each algorithm.  
+We're going to calculate the out of sample error with the misclassification rate, i.e. ((False Negative + False Positive)/Total sample).  
+This error is actually equal to : 1 - Accuracy. And the Accuracy is retrieved from the confusion Matrices calculated before.
+```{r mr, echo=TRUE, results='hide'}
+# Misclassification error rate for linear discriminant analysis
+mrLda <- 1 - cf_lda$overall[1]
+# Misclassification error rate for random forests
+mrRf <- 1 - cf_rf$overall[1]
+# Misclassification error rate for recursive partitioning
+mrRp <- 1 - cf_rp$overall[1]
+```
+When we compare each misclassification error:  
+* Linear discriminant analysis : `r mrLda`  
+* Random forests : `r mrRf`  
+* Recursive Partitioning : `r mrRp`  
+Through corss-validation on the validation dataset, we can easily see that the lowest error is by far the Random Forests one.
+So we are going to use the Random forests model for making the predictions on the provided testing set for Submission.
+
+## Predictions for Submission
+
+We use the model with Random Forests for predicting values on the testing data set :
+```{r prediction, echo=TRUE, results='hide'}
+# Predictions for testing dataset
+pred_test <- predict(fit_rf,newdata=testing)
+pred_test
+```
+
+These are the values I have used for the Submission part of the Course Project:
+```{r prediction2, echo=FALSE, results='markup'}
+pred_test
+```
+
+
+## Annexe
+
+1. Fig. 1: Summary function for the training dataset
+```{r summary2, echo=FALSE, results='markup'}
+summ
+```
+
+2. Fig. 2: Confusion Matrix for Linear Discriminant analysis model
+```{r lda2, echo=FALSE, results='markup'}
+cf_lda
+```
+
+3. Fig. 3: Confusion Matrix for Random Forests model
+```{r rf2, echo=FALSE, results='markup'}
+cf_rf
+```
+
+4. Fig. 4: Confusion Matrix for Recursive Partitioning model
+```{r rp2, echo=FALSE, results='markup'}
+cf_rp
+```
