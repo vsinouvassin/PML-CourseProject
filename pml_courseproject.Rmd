@@ -111,7 +111,7 @@ When we compare each misclassification error:
 * Linear discriminant analysis : `r mrLda`  
 * Random forests : `r mrRf`  
 * Recursive Partitioning : `r mrRp`  
-Through corss-validation on the validation dataset, we can easily see that the lowest error is by far the Random Forests one.
+Through cross-validation on the validation dataset, we can easily see that the lowest error is by far the Random Forests one. And it is also the model with the closest accuracy (99.63%) to the "HAR" study of 99.41% (see in Introduction part).  
 So we are going to use the Random forests model for making the predictions on the provided testing set for Submission.
 
 ## Predictions for Submission
